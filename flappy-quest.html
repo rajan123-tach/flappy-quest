@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Quest 🚀</title>
+    <meta name="description" content="Flappy Quest - Addictive Flappy Bird Game">
+    <meta name="theme-color" content="#4CAF50">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/manifest+json,{
+        'name': 'Flappy Quest',
+        'short_name': 'FlappyQuest',
+        'start_url': '.',
+        'display': 'standalone',
+        'background_color': '#4CAF50',
+        'theme_color': '#4CAF50',
+        'icons': [{
+            'src': 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiBmaWxsPSIjNENBRjUwIi8+CjxwYXRoIGQ9Ik0xMjggOTZhOC04IDAgMSwxLTE2IDAgOC04IDAgMSwxIDE2IDB6IiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K',
+            'sizes': '192x192',
+            'type': 'image/svg+xml'
+        }]
+    }">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 400px;
+            margin: 0 auto;
+            background: #70c5ce;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #87CEEB 0%, #98D8E8 100%);
+        }
+        
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .score {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+        
+        .high-score {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            color: gold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            display: none;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #FF6B6B, #FF8E8E);
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            pointer-events: all;
+            touch-action: manipulation;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 14px;
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        @media (max-width: 400px) {
+            .score { font-size: 20px; }
+            .game-over { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui">
+            <div class="score" id="score">0</div>
+            <div class="high-score" id="highScore">Best: 0</div>
+            <div class="game-over" id="gameOver">
+                <div>Game Over!</div>
+                <div style="font-size: 36px; margin: 20px 0;">😢</div>
+                <div id="finalScore">Score: 0</div>
+                <button class="btn" onclick="restartGame()">🔄 Play Again</button>
+            </div>
+            <div id="instructions">
+                Tap/Click ya Spacebar dabao 🚀
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class FlappyQuest {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resizeCanvas();
+                
+                // Game state
+                this.gameRunning = false;
+                this.score = 0;
+                this.highScore = localStorage.getItem('flappyQuestHighScore') || 0;
+                this.gravity = 0.5;
+                this.jumpPower = -10;
+                this.bird = {
+                    x: 80,
+                    y: 200,
+                    width: 40,
+                    height: 30,
+                    velocity: 0,
+                    color: '#FFD700'
+                };
+                this.pipes = [];
+                this.pipeWidth = 60;
+                this.pipeGap = 180;
+                this.pipeSpeed = 2;
+                this.frame = 0;
+                
+                this.updateHighScore();
+                this.setupEventListeners();
+                this.gameLoop();
+            }
+            
+            resizeCanvas() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                this.gameHeight = this.canvas.height;
+                this.bird.y = this.gameHeight / 2;
+            }
+            
+            updateHighScore() {
+                document.getElementById('highScore').textContent = `Best: ${this.highScore}`;
+            }
+            
+            setupEventListeners() {
+                // Touch/Click
+                this.canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    if (!this.gameRunning) {
+                        this.startGame();
+                    } else {
+                        this.jump();
+                    }
+                });
+                
+                this.canvas.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (!this.gameRunning) {
+                        this.startGame();
+                    } else {
+                        this.jump();
+                    }
+                });
+                
+                // Keyboard
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        if (!this.gameRunning) {
+                            this.startGame();
+                        } else {
+                            this.jump();
+                        }
+                    }
+                });
+                
+                // Resize
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+            
+            startGame() {
+                this.gameRunning = true;
+                this.score = 0;
+                this.bird.y = this.gameHeight / 2;
+                this.bird.velocity = 0;
+                this.pipes = [];
+                this.pipeSpeed = 2;
+                document.getElementById('gameOver').style.display = 'none';
+            }
+            
+            jump() {
+                this.bird.velocity = this.jumpPower;
+            }
+            
+            update() {
+                if (!this.gameRunning) return;
+                
+                // Bird physics
+                this.bird.velocity += this.gravity;
+                this.bird.y += this.bird.velocity;
+                
+                // Ground and ceiling collision
+                if (this.bird.y + this.bird.height > this.gameHeight || this.bird.y < 0) {
+                    this.gameOver();
+                    return;
+                }
+                
+                // Generate pipes
+                if (this.frame % 90 === 0) {
+                    const gapY = Math.random() * (this.gameHeight - this.pipeGap - 200) + 100;
+                    this.pipes.push({
+                        x: this.canvas.width,
+                        topHeight: gapY,
+                        bottomY: gapY + this.pipeGap,
+                        bottomHeight: this.gameHeight - (gapY + this.pipeGap),
+                        passed: false
+                    });
+                }
+                
+                // Update pipes
+                for (let i = this.pipes.length - 1; i >= 0; i--) {
+                    this.pipes[i].x -= this.pipeSpeed;
+                    
+                    // Score
+                    if (!this.pipes[i].passed && this.pipes[i].x + this.pipeWidth < this.bird.x) {
+                        this.pipes[i].passed = true;
+                        this.score++;
+                        document.getElementById('score').textContent = this.score;
+                        
+                        // Increase difficulty
+                        if (this.score % 10 === 0) {
+                            this.pipeSpeed += 0.1;
+                        }
+                    }
+                    
+                    // Remove off-screen pipes
+                    if (this.pipes[i].x + this.pipeWidth < 0) {
+                        this.pipes.splice(i, 1);
+                    }
+                }
+                
+                this.frame++;
+            }
+            
+            checkCollisions() {
+                for (let pipe of this.pipes) {
+                    // Top pipe collision
+                    if (this.bird.x < pipe.x + this.pipeWidth &&
+                        this.bird.x + this.bird.width > pipe.x &&
+                        this.bird.y < pipe.topHeight) {
+                        return true;
+                    }
+                    
+                    // Bottom pipe collision
+                    if (this.bird.x < pipe.x + this.pipeWidth &&
+                        this.bird.x + this.bird.width > pipe.x &&
+                        this.bird.y + this.bird.height > pipe.bottomY) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            gameOver() {
+                this.gameRunning = false;
+                
+                if (this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('flappyQuestHighScore', this.highScore);
+                    this.updateHighScore();
+                }
+                
+                document.getElementById('finalScore').textContent = `Score: ${this.score}`;
+                document.getElementById('gameOver').style.display = 'block';
+            }
+            
+            draw() {
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.gameHeight);
+                
+                if (!this.gameRunning) {
+                    // Title screen
+                    this.ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.gameHeight);
+                    
+                    this.ctx.fillStyle = '#FFD700';
+                    this.ctx.font = 'bold 36px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('Flappy Quest', this.canvas.width / 2, this.gameHeight / 2 - 50);
+                    
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = '24px Arial';
+                    this.ctx.fillText('Tap/Click to Start', this.canvas.width / 2, this.gameHeight / 2);
+                    
+                    this.ctx.font = '18px Arial';
+                    this.ctx.fillText(`High Score: ${this.highScore}`, this.canvas.width / 2, this.gameHeight / 2 + 40);
+                } else {
+                    // Draw bird
+                    this.ctx.save();
+                    this.ctx.translate(this.bird.x + this.bird.width/2, this.bird.y + this.bird.height/2);
+                    this.ctx.rotate(Math.sin(this.frame * 0.2) * 0.3);
+                    
+                    // Bird body
+                    const gradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+                    gradient.addColorStop(0, '#FFD700');
+                    gradient.addColorStop(1, '#FFA500');
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, 20, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Eye
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.beginPath();
+                    this.ctx.arc(8, -5, 8, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.fillStyle = 'black';
+                    this.ctx.beginPath();
+                    this.ctx.arc(12, -3, 4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Beak
+                    this.ctx.fillStyle = '#FF8C00';
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(20, 0);
+                    this.ctx.lineTo(30, -5);
+                    this.ctx.lineTo(30, 5);
+                    this.ctx.fill();
+                    
+                    this.ctx.restore();
+                    
+                    // Draw pipes
+                    this.ctx.fillStyle = '#228B22';
+                    for (let pipe of this.pipes) {
+                        // Top pipe
+                        this.ctx.fillRect(pipe.x, 0, this.pipeWidth, pipe.topHeight);
+                        this.ctx.fillStyle = '#32CD32';
+                        this.ctx.fillRect(pipe.x - 5, pipe.topHeight - 20, this.pipeWidth + 10, 20);
+                        
+                        // Bottom pipe
+                        this.ctx.fillStyle = '#228B22';
+                        this.ctx.fillRect(pipe.x, pipe.bottomY, this.pipeWidth, pipe.bottomHeight);
+                        this.ctx.fillStyle = '#32CD32';
+                        this.ctx.fillRect(pipe.x - 5, pipe.bottomY, this.pipeWidth + 10, 20);
+                    }
+                    
+                    // Ground
+                    const groundGradient = this.ctx.createLinearGradient(0, this.gameHeight - 50, 0, this.gameHeight);
+                    groundGradient.addColorStop(0, '#90EE90');
+                    groundGradient.addColorStop(1, '#228B22');
+                    this.ctx.fillStyle = groundGradient;
+                    this.ctx.fillRect(0, this.gameHeight - 50, this.canvas.width, 50);
+                }
+            }
+            
+            gameLoop() {
+                this.update();
+                if (this.gameRunning && this.checkCollisions()) {
+                    this.gameOver();
+                }
+                this.draw();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+        
+        // Global functions
+        let game;
+        function initGame() {
+            game = new FlappyQuest();
+        }
+        
+        function restartGame() {
+            game.startGame();
+        }
+        
+        // Start game when page loads
+        window.addEventListener('load', initGame);
+        
+        // PWA Install Prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+    </script>
+</body>
+</html>
